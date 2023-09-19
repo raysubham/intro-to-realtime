@@ -1,6 +1,9 @@
 const chat = document.getElementById("chat");
 const msgs = document.getElementById("msgs");
 
+const BACKOFF = 5000;
+let failedTries = 0;
+
 // let's store all current messages here
 let allChat = [];
 
@@ -36,14 +39,21 @@ async function getNewMsgs() {
   try {
     const response = await fetch("/poll");
     json = await response.json();
+
+    if (!response.ok) {
+      throw new Error("Not good response");
+    } else {
+      failedTries = 0;
+    }
   } catch (error) {
     // Backoff code
-    console.error("polling error", e);
+    console.error("polling error", error);
+    failedTries++;
   } finally {
     if (json?.msg?.length) {
       allChat = json?.msg;
       render();
-      setTimeout(getNewMsgs, INTERVAL);
+      // setTimeout(getNewMsgs, INTERVAL); // SetTimeout works good, but for pause/unpause tab, it is better to leverage requestAnimationFrame
     }
   }
 }
@@ -61,5 +71,19 @@ function render() {
 const template = (user, msg) =>
   `<li class="collection-item"><span class="badge">${user}</span>${msg}</li>`;
 
-// make the first request
-getNewMsgs();
+// // make the first request
+// getNewMsgs();
+
+let timeToNextAnimation = 0;
+
+const rafTimer = async (time) => {
+  console.log(time);
+  if (timeToNextAnimation <= time) {
+    await getNewMsgs();
+    timeToNextAnimation = time + INTERVAL + failedTries * BACKOFF;
+  }
+  window.requestAnimationFrame(rafTimer);
+};
+
+// Make the first request
+window.requestAnimationFrame(rafTimer);
